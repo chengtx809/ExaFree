@@ -74,13 +74,21 @@ curl http://localhost:7860/search \
 
 **环境变量**
 
-- `EXA_POOL_BASE_URL`：上游 Exa Pool 地址（默认 `http://127.0.0.1:7860`）
-- `EXA_POOL_API_KEY`：用于访问上游 Exa Pool 的 API Key（必填）
+- `EXA_POOL_API_KEY`：用于访问本服务的用户 API Key（必填）
 
 说明：
 
-- 若未配置 `EXA_POOL_BASE_URL`，会默认指向本服务。
-- 若未配置 `EXA_POOL_API_KEY`，MCP 请求将直接返回错误提示。
+- MCP 仅需配置 `EXA_POOL_API_KEY`，无需额外参数。
+- 未配置 `EXA_POOL_API_KEY` 时，MCP 请求将直接返回错误提示。
+
+### 2. 配置（以 Claude Code 为例）
+
+```bash
+claude mcp add --transport http exa-pool http://localhost:7860/mcp \
+  --env EXA_POOL_API_KEY=your-user-api-key
+```
+
+重启 Claude Code 以应用 MCP 的配置变更。
 
 ---
 

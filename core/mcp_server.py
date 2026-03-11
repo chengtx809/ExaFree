@@ -16,11 +16,7 @@ TIMEOUT = httpx.Timeout(30.0, connect=5.0)
 
 
 def _get_mcp_config() -> Dict[str, str]:
-    base_url = os.getenv("EXA_POOL_BASE_URL", "").strip()
-    if not base_url:
-        base_url = os.getenv("EXA_BASE_URL", "").strip()
-    if not base_url:
-        base_url = "http://127.0.0.1:7860"
+    base_url = "http://127.0.0.1:7860"
     api_key = os.getenv("EXA_POOL_API_KEY", "").strip()
     return {"base_url": base_url, "api_key": api_key}
 
@@ -51,8 +47,6 @@ async def make_exa_request(
     config = _get_mcp_config()
     base_url = config["base_url"]
     api_key = config["api_key"]
-    if not base_url:
-        return "Error: EXA_POOL_BASE_URL is not configured."
     if not api_key:
         return "Error: EXA_POOL_API_KEY is not configured."
 
