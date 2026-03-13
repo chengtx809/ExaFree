@@ -11,6 +11,15 @@ services:
       - "7860:7860"
     volumes:
       - ./data:/app/data
+    environment:
+      # 读取配置的 YAML 文件路径
+      CONFIG_FILE: "/app/data/settings.yaml"
+      # 启用管理面板
+      DISABLE_ADMIN_PANEL: "0"
+      # 管理员密钥（旧版 /login 使用；建议设置）
+      ADMIN_KEY: "change_me_admin_key"
+      # Session 密钥（如仍使用登录接口，务必固定）
+      SESSION_SECRET_KEY: "change_me_session_secret"
     restart: unless-stopped
     # 健康检查
     healthcheck:

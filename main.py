@@ -616,6 +616,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="ExaFree", lifespan=lifespan)
 
 frontend_origin = os.getenv("FRONTEND_ORIGIN", "").strip()
+DISABLE_ADMIN_PANEL = os.getenv("DISABLE_ADMIN_PANEL", "0") == "1"
 allow_all_origins = os.getenv("ALLOW_ALL_ORIGINS", "0") == "1"
 if allow_all_origins and not frontend_origin:
     app.add_middleware(
@@ -634,11 +635,12 @@ elif frontend_origin:
         allow_headers=["*"],
     )
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
-if os.path.exists(os.path.join("static", "assets")):
-    app.mount("/assets", StaticFiles(directory=os.path.join("static", "assets")), name="assets")
-if os.path.exists(os.path.join("static", "vendor")):
-    app.mount("/vendor", StaticFiles(directory=os.path.join("static", "vendor")), name="vendor")
+if not DISABLE_ADMIN_PANEL:
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+    if os.path.exists(os.path.join("static", "assets")):
+        app.mount("/assets", StaticFiles(directory=os.path.join("static", "assets")), name="assets")
+    if os.path.exists(os.path.join("static", "vendor")):
+        app.mount("/vendor", StaticFiles(directory=os.path.join("static", "vendor")), name="vendor")
 try:
     from core.mcp_server import get_mcp_http_app
 
@@ -651,19 +653,20 @@ except Exception as e:
 async def mcp_redirect():
     return RedirectResponse(url="/mcp/", status_code=307)
 
-@app.get("/")
-async def serve_frontend_index():
-    index_path = os.path.join("static", "index.html")
-    if os.path.exists(index_path):
-        return FileResponse(index_path)
-    raise HTTPException(404, "Not Found")
+if not DISABLE_ADMIN_PANEL:
+    @app.get("/")
+    async def serve_frontend_index():
+        index_path = os.path.join("static", "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        raise HTTPException(404, "Not Found")
 
-@app.get("/logo.svg")
-async def serve_logo():
-    logo_path = os.path.join("static", "logo.svg")
-    if os.path.exists(logo_path):
-        return FileResponse(logo_path)
-    raise HTTPException(404, "Not Found")
+    @app.get("/logo.svg")
+    async def serve_logo():
+        logo_path = os.path.join("static", "logo.svg")
+        if os.path.exists(logo_path):
+            return FileResponse(logo_path)
+        raise HTTPException(404, "Not Found")
 
 @app.get("/health")
 async def health_check():
@@ -3041,13 +3044,14 @@ async def not_found_handler(request: Request, exc: HTTPException):
     )
 
 # SPA fallback: 所有非 API 路由返回 index.html
-@app.get("/{full_path:path}")
-async def serve_spa(full_path: str):
-    """处理所有前端路由，返回 index.html"""
-    index_path = os.path.join("static", "index.html")
-    if os.path.exists(index_path):
-        return FileResponse(index_path)
-    raise HTTPException(404, "Not Found")
+if not DISABLE_ADMIN_PANEL:
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        """处理所有前端路由，返回 index.html"""
+        index_path = os.path.join("static", "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        raise HTTPException(404, "Not Found")
 
 
 if __name__ == "__main__":

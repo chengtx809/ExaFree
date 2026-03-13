@@ -533,16 +533,19 @@
             <textarea
               v-model="importText"
               class="min-h-[140px] w-full rounded-2xl border border-input bg-background px-3 py-2 text-xs font-mono"
-              placeholder="duckmail----you@example.com----password&#10;moemail----you@moemail.app----emailId&#10;freemail----you@freemail.local&#10;gptmail----you@example.com&#10;cfmail----you@example.com----jwtToken&#10;xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx&#10;user@outlook.com----loginPassword----clientId----refreshToken"
+              placeholder="user@example.com----xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx----used&#10;api_key: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx&#10;duckmail----you@example.com----password&#10;moemail----you@moemail.app----emailId&#10;freemail----you@freemail.local&#10;gptmail----you@example.com&#10;cfmail----you@example.com----jwtToken&#10;xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx&#10;user@outlook.com----loginPassword----clientId----refreshToken"
             ></textarea>
             <div class="rounded-2xl border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
               <p>支持以下格式：</p>
+              <p class="mt-1 font-mono">email----apiKey----coupon_status</p>
+              <p class="mt-1 font-mono">email----apiKey----coupon_status----coupon_code</p>
+              <p class="mt-1 font-mono">api_key: apiKey</p>
+              <p class="mt-1 font-mono">apiKey（每行一个）</p>
               <p class="mt-1 font-mono">duckmail----email----password</p>
               <p class="mt-1 font-mono">moemail----email----emailId</p>
               <p class="mt-1 font-mono">freemail----email</p>
               <p class="mt-1 font-mono">gptmail----email</p>
               <p class="mt-1 font-mono">cfmail----email----jwtToken</p>
-              <p class="mt-1 font-mono">apiKey（每行一个）</p>
               <p class="mt-1 font-mono">email----password----clientId----refreshToken</p>
               <p class="mt-2">导入仅用于账号配置管理，不再执行刷新流程。</p>
               <p class="mt-1">注册失败建议关闭无头浏览器再试</p>
@@ -1012,21 +1015,75 @@
                 TXT
               </button>
             </div>
+            <div class="flex rounded-full border border-border bg-muted/30 p-1 text-xs">
+              <button
+                type="button"
+                class="flex-1 rounded-full px-3 py-2 font-medium transition-colors"
+                :class="exportDetail === 'keys' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'"
+                @click="exportDetail = 'keys'"
+              >
+                仅 API Key
+              </button>
+              <button
+                type="button"
+                class="flex-1 rounded-full px-3 py-2 font-medium transition-colors"
+                :class="exportDetail === 'full' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'"
+                @click="exportDetail = 'full'"
+              >
+                全部信息
+              </button>
+            </div>
             <p class="text-xs text-muted-foreground">
               选中导出仅包含当前已勾选账号（{{ selectedCount }} 个）。
             </p>
             <p class="text-xs text-muted-foreground">
               <template v-if="exportFormat === 'json'">
-                JSON 格式包含完整数据（Cookie、Token、过期时间等），导入后无需重新刷新。
+                <template v-if="exportDetail === 'full'">
+                  JSON 导出包含全部字段，可直接导入恢复完整配置。
+                </template>
+                <template v-else>
+                  JSON 导出仅包含 API Key（数组），适合快速迁移。
+                </template>
               </template>
               <template v-else>
-                TXT 格式仅导出邮箱和密码，导入后需要重新刷新获取 Cookie。
+                <template v-if="exportDetail === 'full'">
+                  TXT 格式为 `邮箱----API Key----优惠码使用状态`（每行一条）。
+                </template>
+                <template v-else>
+                  TXT 格式仅导出 API Key（每行一个）。
+                </template>
               </template>
             </p>
+            <div v-if="exportOutput" class="space-y-2">
+              <label class="block text-xs text-muted-foreground">导出内容</label>
+              <textarea
+                v-model="exportOutput"
+                class="h-40 w-full rounded-2xl border border-input bg-background px-3 py-2 text-xs font-mono"
+                spellcheck="false"
+                readonly
+              ></textarea>
+              <p class="text-xs text-muted-foreground">可复制粘贴或下载文件。</p>
+            </div>
           </div>
         </div>
         <div class="border-t border-border/60 px-6 py-4">
           <div class="flex items-center justify-end gap-2">
+            <button
+              v-if="exportOutput"
+              class="rounded-full border border-border px-4 py-2 text-sm text-muted-foreground transition-colors
+                     hover:border-primary hover:text-primary"
+              @click="copyExportOutput"
+            >
+              复制内容
+            </button>
+            <button
+              v-if="exportOutput"
+              class="rounded-full border border-border px-4 py-2 text-sm text-muted-foreground transition-colors
+                     hover:border-primary hover:text-primary"
+              @click="downloadExportOutput"
+            >
+              下载文件
+            </button>
             <button
               class="rounded-full border border-border px-4 py-2 text-sm text-muted-foreground transition-colors
                      hover:border-primary hover:text-primary"
@@ -1037,10 +1094,10 @@
             <button
               class="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity
                      hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="exportScope === 'selected' && !selectedCount"
+              :disabled="isExporting || (exportScope === 'selected' && !selectedCount)"
               @click="runExport"
             >
-              开始导出
+              {{ isExporting ? '生成中...' : (exportOutput ? '重新生成' : '生成内容') }}
             </button>
           </div>
         </div>
@@ -1105,6 +1162,11 @@ const importFileName = ref('')
 const isExportOpen = ref(false)
 const exportScope = ref<'all' | 'selected'>('all')
 const exportFormat = ref<'json' | 'txt'>('json')
+const exportDetail = ref<'keys' | 'full'>('full')
+const exportOutput = ref('')
+const exportFilename = ref('')
+const exportMime = ref('text/plain')
+const isExporting = ref(false)
 const isTaskOpen = ref(false)
 const activeTaskTab = ref<'current' | 'history'>('current')
 const showMoreActions = ref(false)
@@ -1555,6 +1617,10 @@ const openRegisterModal = () => {
 const openExportModal = (format: 'json' | 'txt' = 'json') => {
   exportFormat.value = format
   exportScope.value = 'all'
+  exportDetail.value = 'full'
+  exportOutput.value = ''
+  exportFilename.value = ''
+  exportMime.value = 'text/plain'
   isExportOpen.value = true
 }
 
@@ -1566,14 +1632,90 @@ const closeRegisterModal = () => {
   isRegisterOpen.value = false
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+const hashString = (value: string) => {
+  let hash = 0
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(i)
+    hash |= 0
+  }
+  return Math.abs(hash).toString(36)
+}
+
+const buildApiKeyId = (apiKey: string, fallbackIndex: number) => {
+  const hash = hashString(apiKey).slice(0, 10)
+  return `exa_${hash || fallbackIndex}`
+}
+
+const buildApiKeyItem = (apiKey: string, fallbackIndex: number): AccountConfigItem => ({
+  id: buildApiKeyId(apiKey, fallbackIndex),
+  secure_c_ses: apiKey,
+  csesidx: 'exa',
+  config_id: 'exa',
+  exa_api_key: apiKey,
+})
+
+const isLikelyApiKey = (value: string) => UUID_RE.test(value.trim())
+
+const extractImportListFromJson = (parsed: unknown): unknown[] => {
+  if (Array.isArray(parsed)) return parsed
+  if (!parsed || typeof parsed !== 'object') return []
+  const container = parsed as Record<string, unknown>
+  if (Array.isArray(container.accounts)) return container.accounts
+  if (Array.isArray(container.items)) return container.items
+  if (Array.isArray(container.data)) return container.data
+  return []
+}
+
+const normalizeImportList = (list: unknown[]): AccountConfigItem[] => {
+  const normalized: AccountConfigItem[] = []
+  list.forEach((entry, index) => {
+    const lineNo = index + 1
+    if (typeof entry === 'string') {
+      const apiKey = entry.trim()
+      if (apiKey) {
+        normalized.push(buildApiKeyItem(apiKey, lineNo))
+      }
+      return
+    }
+    if (!entry || typeof entry !== 'object') return
+    const item = { ...(entry as Record<string, unknown>) } as Record<string, unknown>
+    const rawApiKey = String(item.exa_api_key || item.api_key || '').trim()
+    if (rawApiKey) {
+      item.exa_api_key = rawApiKey
+      if (!item.secure_c_ses) item.secure_c_ses = rawApiKey
+      if (!item.csesidx) item.csesidx = 'exa'
+      if (!item.config_id) item.config_id = 'exa'
+    }
+    if (!item.id) {
+      const fallbackId = (item.mail_address || item.account_id || item.email) as string | undefined
+      item.id = fallbackId || (rawApiKey ? buildApiKeyId(rawApiKey, lineNo) : `account_${lineNo}`)
+    }
+    normalized.push(item as AccountConfigItem)
+  })
+  return normalized
+}
+
 const parseImportLines = (raw: string) => {
   const items: AccountConfigItem[] = []
   const errors: string[] = []
   const lines = raw.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
 
   lines.forEach((line, index) => {
+    const inlineMatch = line.match(/^(?:api[_\s-]?key|exa[_\s-]?api[_\s-]?key)\s*[:=]\s*(.+)$/i)
     const parts = line.split('----').map(part => part.trim())
     const lineNo = index + 1
+
+    if (inlineMatch) {
+      const apiKey = inlineMatch[1].trim()
+      if (!apiKey) {
+        errors.push(`第 ${lineNo} 行格式错误（api key）`)
+        return
+      }
+      items.push(buildApiKeyItem(apiKey, lineNo))
+      return
+    }
 
     if (!parts.length) return
 
@@ -1690,6 +1832,35 @@ const parseImportLines = (raw: string) => {
       return
     }
 
+    const rawEmail = parts[0]
+    if (rawEmail && rawEmail.includes('@')) {
+      const apiKey = parts[1] || ''
+      if (isLikelyApiKey(apiKey)) {
+        items.push({
+          id: rawEmail,
+          mail_address: rawEmail,
+          secure_c_ses: apiKey,
+          csesidx: 'exa',
+          config_id: 'exa',
+          exa_api_key: apiKey,
+          coupon_status: parts[2] || undefined,
+          coupon_code: parts[3] || undefined,
+        })
+        return
+      }
+    }
+
+    const apiKeyPrefix = parts[0].toLowerCase()
+    if (apiKeyPrefix === 'api_key' || apiKeyPrefix === 'apikey' || apiKeyPrefix === 'exa_api_key' || apiKeyPrefix === 'exa_apikey') {
+      if (parts.length < 2 || !parts[1]) {
+        errors.push(`第 ${lineNo} 行格式错误（api key）`)
+        return
+      }
+      const apiKey = parts.slice(1).join('----')
+      items.push(buildApiKeyItem(apiKey, lineNo))
+      return
+    }
+
     if (parts.length >= 4 && parts[0] && parts[2] && parts[3]) {
       const email = parts[0]
       const password = parts[1] || ''
@@ -1712,13 +1883,7 @@ const parseImportLines = (raw: string) => {
 
     if (parts.length === 1 && parts[0]) {
       const apiKey = parts[0]
-      items.push({
-        id: `exa_${lineNo}`,
-        secure_c_ses: '',
-        csesidx: '',
-        config_id: '',
-        exa_api_key: apiKey,
-      })
+      items.push(buildApiKeyItem(apiKey, lineNo))
       return
     }
 
@@ -1728,50 +1893,11 @@ const parseImportLines = (raw: string) => {
   return { items, errors }
 }
 
-const CONFIG_EXPORT_FIELDS = [
-  'id',
-  'secure_c_ses',
-  'host_c_oses',
-  'csesidx',
-  'config_id',
-  'exa_api_key',
-  'coupon_code',
-  'coupon_status',
-  'balance',
-  'expires_at',
-  'disabled',
-  'trial_end',
-  'mail_provider',
-  'mail_address',
-  'mail_password',
-  'mail_client_id',
-  'mail_refresh_token',
-  'mail_tenant',
-  'mail_base_url',
-  'mail_jwt_token',
-  'mail_verify_ssl',
-  'mail_domain',
-  'mail_api_key',
-]
-
-const normalizeConfigItem = (item: Record<string, unknown>) => {
-  const next: Record<string, unknown> = {}
-  CONFIG_EXPORT_FIELDS.forEach((key) => {
-    if (key in item) {
-      next[key] = item[key]
-    }
-  })
-  return next
-}
-
-const normalizeConfigList = (list: Record<string, unknown>[]) =>
-  list.map((item) => normalizeConfigItem(item))
-
 const validateConfigItems = (list: Record<string, unknown>[]) => {
   const errors: string[] = []
   list.forEach((item, index) => {
     const lineNo = index + 1
-    const exaKey = String(item.exa_api_key || '').trim()
+    const exaKey = String(item.exa_api_key || item.api_key || '').trim()
     if (exaKey) return
     const mailProvider = String(item.mail_provider || '').trim()
     const mailAddress = String(item.mail_address || '').trim()
@@ -1802,13 +1928,17 @@ const handleImportFile = async (event: Event) => {
     const content = await file.text()
     if (file.name.toLowerCase().endsWith('.json') || file.type.includes('json')) {
       const parsed = JSON.parse(content)
-      const importList = Array.isArray(parsed) ? parsed : parsed?.accounts
-      if (!Array.isArray(importList)) {
-        importError.value = 'JSON 格式错误：需要数组或包含 accounts 字段'
+      const importList = extractImportListFromJson(parsed)
+      if (!Array.isArray(importList) || !importList.length) {
+        importError.value = 'JSON 格式错误：需要数组或包含 accounts/items/data 字段'
         return
       }
-      const normalizedList = normalizeConfigList(importList)
-      const validation = validateConfigItems(normalizedList)
+      const normalizedList = normalizeImportList(importList)
+      if (!normalizedList.length) {
+        importError.value = '未识别到有效账号'
+        return
+      }
+      const validation = validateConfigItems(normalizedList as unknown as Record<string, unknown>[])
       if (!validation.ok) {
         importError.value = validation.errors.slice(0, 3).join('，')
         return
@@ -1830,7 +1960,7 @@ const handleImportFile = async (event: Event) => {
 
       await accountsStore.updateConfig(next)
       selectedIds.value = new Set(importedIds)
-      toast.success(`导入 ${importList.length} 条账号配置`)
+      toast.success(`导入 ${normalizedList.length} 条账号配置`)
 
       closeRegisterModal()
       return
@@ -1893,8 +2023,26 @@ const handleImport = async () => {
           updated.mail_tenant = undefined
         }
       }
+      if (!item.mail_provider && item.mail_address) {
+        updated.mail_address = item.mail_address
+      }
+      if (item.secure_c_ses) {
+        updated.secure_c_ses = item.secure_c_ses
+      }
+      if (item.csesidx) {
+        updated.csesidx = item.csesidx
+      }
+      if (item.config_id) {
+        updated.config_id = item.config_id
+      }
       if (item.exa_api_key) {
         updated.exa_api_key = item.exa_api_key
+      }
+      if (item.coupon_status) {
+        updated.coupon_status = item.coupon_status
+      }
+      if (item.coupon_code) {
+        updated.coupon_code = item.coupon_code
       }
 
       next[idx] = updated
@@ -1916,7 +2064,11 @@ const handleImport = async () => {
   }
 }
 
-const exportConfig = async (format: 'json' | 'txt', scope: 'all' | 'selected' = 'all') => {
+const exportConfig = async (
+  format: 'json' | 'txt',
+  scope: 'all' | 'selected' = 'all',
+  detail: 'keys' | 'full' = 'full'
+) => {
   try {
     const response = await accountsApi.getConfig()
     let list = Array.isArray(response.accounts) ? response.accounts : []
@@ -1927,50 +2079,72 @@ const exportConfig = async (format: 'json' | 'txt', scope: 'all' | 'selected' = 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
 
     if (format === 'json') {
-      const payload = JSON.stringify(normalizeConfigList(list as unknown as Record<string, unknown>[]), null, 2)
-      downloadText(payload, `accounts-${timestamp}.json`, 'application/json')
-      toast.success('导出 JSON 成功')
-      return
+      if (detail === 'keys') {
+        const keys = list
+          .map((item) => (item.exa_api_key || item.secure_c_ses || item.api_key || '').trim())
+          .filter(Boolean)
+        const payload = JSON.stringify({
+          exported_at: new Date().toISOString(),
+          format: 'apikeys',
+          accounts: keys,
+        }, null, 2)
+        return {
+          content: payload,
+          filename: `accounts-keys-${timestamp}.json`,
+          mime: 'application/json',
+          toastMessage: '生成 JSON 成功（仅 API Key）',
+        }
+      }
+
+      const payload = JSON.stringify({
+        exported_at: new Date().toISOString(),
+        format: 'full',
+        accounts: list,
+      }, null, 2)
+      return {
+        content: payload,
+        filename: `accounts-full-${timestamp}.json`,
+        mime: 'application/json',
+        toastMessage: '生成 JSON 成功（全部信息）',
+      }
     }
 
     const lines = list.map((item) => {
-      const provider = (item.mail_provider || '').toLowerCase()
       const email = item.mail_address || item.id || ''
-      if (!email) return ''
-      if (provider === 'moemail') {
-        return `moemail----${email}----${item.mail_password || ''}`
+      const apiKey = (item.exa_api_key || item.secure_c_ses || item.api_key || '').trim()
+      if (!apiKey) return ''
+      if (detail === 'keys') {
+        return apiKey
       }
-      if (provider === 'freemail') {
-        return `freemail----${email}`
-      }
-      if (provider === 'gptmail') {
-        return `gptmail----${email}`
-      }
-      if (provider === 'cfmail') {
-        return `cfmail----${email}----${item.mail_password || ''}`
-      }
-      if (provider === 'duckmail') {
-        return `duckmail----${email}----${item.mail_password || ''}`
-      }
-      if (provider === 'microsoft' || item.mail_client_id || item.mail_refresh_token) {
-        return `${email}----${item.mail_password || ''}----${item.mail_client_id || ''}----${item.mail_refresh_token || ''}`
-      }
-      if (item.mail_password) {
-        return `duckmail----${email}----${item.mail_password}`
-      }
-      return email
+      return `${email}----${apiKey}----${item.coupon_status || ''}`
     }).filter(Boolean)
 
-    downloadText(lines.join('\n'), `accounts-${timestamp}.txt`, 'text/plain')
-    toast.success('导出 TXT 成功')
+    const suffix = detail === 'keys' ? 'keys' : 'full'
+    return {
+      content: lines.join('\n'),
+      filename: `accounts-${suffix}-${timestamp}.txt`,
+      mime: 'text/plain',
+      toastMessage: `生成 TXT 成功（${detail === 'keys' ? '仅 API Key' : '全部信息'}）`,
+    }
   } catch (error: any) {
     toast.error(error.message || '导出失败')
+    return null
   }
 }
 
 const runExport = async () => {
-  await exportConfig(exportFormat.value, exportScope.value)
-  closeExportModal()
+  if (isExporting.value) return
+  isExporting.value = true
+  try {
+    const result = await exportConfig(exportFormat.value, exportScope.value, exportDetail.value)
+    if (!result) return
+    exportOutput.value = result.content
+    exportFilename.value = result.filename
+    exportMime.value = result.mime
+    toast.success(result.toastMessage)
+  } finally {
+    isExporting.value = false
+  }
 }
 
 const downloadText = (content: string, filename: string, mime: string) => {
@@ -1983,6 +2157,34 @@ const downloadText = (content: string, filename: string, mime: string) => {
   link.click()
   document.body.removeChild(link)
   URL.revokeObjectURL(url)
+}
+
+const copyExportOutput = async () => {
+  if (!exportOutput.value) return
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(exportOutput.value)
+    } else {
+      const temp = document.createElement('textarea')
+      temp.value = exportOutput.value
+      temp.style.position = 'fixed'
+      temp.style.opacity = '0'
+      document.body.appendChild(temp)
+      temp.focus()
+      temp.select()
+      document.execCommand('copy')
+      document.body.removeChild(temp)
+    }
+    toast.success('已复制到剪贴板')
+  } catch (error: any) {
+    toast.error(error?.message || '复制失败')
+  }
+}
+
+const downloadExportOutput = () => {
+  if (!exportOutput.value || !exportFilename.value) return
+  downloadText(exportOutput.value, exportFilename.value, exportMime.value)
+  toast.success('已开始下载')
 }
 
 const refreshTaskSnapshot = async () => {
@@ -2376,6 +2578,7 @@ const maskConfig = (list: AccountConfigItem[]) => {
     'config_id',
     'host_c_oses',
     'exa_api_key',
+    'api_key',
     'mail_password',
     'mail_refresh_token',
     'mail_client_id',
