@@ -277,8 +277,26 @@ class ExaAutomation:
                 continue
             page.wait_for_timeout(300)
 
-        # onboarding 仍未完成时直接失败，避免产出“未领新手奖励”的账号。
-        if "dashboard.exa.ai" in page.url and "onboarding" in page.url:
+        onboarding_completed = self._is_onboarding_completed(page)
+
+        # Exa 新版完成态可能仍保留在 /onboarding 页面，此时主动跳往 API Keys，
+        # 避免仅因 URL 未变化而将已完成的新手引导误判为失败。
+        if onboarding_completed and "onboarding" in page.url:
+            self._log("info", "✅ 检测到 onboarding 已完成，继续跳转 API Keys 页面")
+            try:
+                self._safe_goto(
+                    page,
+                    "https://dashboard.exa.ai/api-keys",
+                    wait_until="domcontentloaded",
+                    timeout=self.timeout_ms,
+                    retries=1,
+                )
+                page.wait_for_timeout(900)
+            except Exception as exc:
+                self._log("warning", f"⚠️ onboarding 完成后跳转 API Keys 失败，将继续后续流程: {exc}")
+
+        # 只有在既没有完成信号、又仍停留在 onboarding 时，才判定为真正失败。
+        if "dashboard.exa.ai" in page.url and "onboarding" in page.url and not onboarding_completed:
             raise RuntimeError(f"onboarding 未完成，仍停留在: {page.url}")
 
         if not onboarding_key:
@@ -458,6 +476,20 @@ class ExaAutomation:
     def _extract_balance(text: str) -> Optional[str]:
         m = re.search(r"Remaining Balance\s*\$([0-9][0-9,]*(?:\.[0-9]{2})?)", text or "", flags=re.I)
         return m.group(1) if m else None
+
+    @staticmethod
+    def _is_onboarding_completed(page) -> bool:
+        body_text = (page.inner_text("body") or "").lower()
+        completion_markers = [
+            "you're all set",
+            "you’re all set",
+            "exa api setup guide",
+            "manage keys at",
+            "api keys",
+            "your api key:",
+            "mcp.exa.ai/mcp",
+        ]
+        return any(marker in body_text for marker in completion_markers)
 
     @staticmethod
     def _click_if_visible(page, selector: str) -> bool:

@@ -175,7 +175,7 @@ class ConfigManager:
         env_path = os.getenv("CONFIG_FILE", "").strip()
         if not yaml_path:
             yaml_path = env_path
-        self.yaml_path = Path(yaml_path) if yaml_path else Path()
+        self.yaml_path: Optional[Path] = Path(yaml_path) if yaml_path else None
         self._config: Optional[AppConfig] = None
         self.load()
 
@@ -336,7 +336,7 @@ class ConfigManager:
         env_path = os.getenv("CONFIG_FILE", "").strip()
         if env_path:
             return Path(env_path)
-        if self.yaml_path and str(self.yaml_path):
+        if self.yaml_path is not None:
             return self.yaml_path
         default_path = Path("data") / "settings.yaml"
         if default_path.exists():
@@ -349,6 +349,12 @@ class ConfigManager:
             print(msg)
             if required:
                 raise RuntimeError(f"配置文件不存在: {path}")
+            return {}
+        if not path.is_file():
+            msg = f"[WARN] 配置路径不是文件: {path}"
+            print(msg)
+            if required:
+                raise RuntimeError(f"配置路径不是文件: {path}")
             return {}
         try:
             with path.open("r", encoding="utf-8") as f:
