@@ -39,3 +39,11 @@ node_modules/
 dist/
 build/
 coverage/
+
+.venv
+
+data/
+
+static/
+
+frontend/pnpm-lock.yaml
