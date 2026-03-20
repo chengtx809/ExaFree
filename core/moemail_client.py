@@ -257,6 +257,9 @@ class MoemailClient:
                 messages_with_time.sort(key=lambda item: item[1] or datetime.min, reverse=True)
                 messages = [item[0] for item in messages_with_time]
 
+            # 按验证码相关性排序：subject 匹配验证关键词的排前面
+            messages = sorted(messages, key=lambda m: (0 if _looks_like_verification(m) else 1))
+
             # 遍历邮件
             for idx, msg in enumerate(messages, 1):
                 msg_id = msg.get("id")
@@ -266,11 +269,7 @@ class MoemailClient:
                 # 时间过滤
                 if since_time:
                     msg_time = _parse_message_time(msg)
-                    if msg_time:
-                        if msg_time < since_time:
-                            continue
-
-                    if not _looks_like_verification(msg):
+                    if msg_time and msg_time < since_time:
                         continue
 
                 # 优先从邮件列表的 content 字段提取验证码（更高效）
