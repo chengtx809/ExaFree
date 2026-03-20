@@ -14,7 +14,6 @@ ARG APT_MIRROR=http://deb.debian.org
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
     PORT=7860 \
     CONFIG_FILE=/app/data/settings.yaml \
     ADMIN_PANEL_STATIC_DIR=/app/static
@@ -54,10 +53,11 @@ RUN if [ -f /etc/apt/sources.list ]; then \
         xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt ./
-RUN python -m pip install --upgrade pip \
-    && pip install -r requirements.txt \
-    && python -m playwright install --with-deps chromium
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project \
+    && uv run playwright install --with-deps chromium
 
 COPY main.py ./
 COPY core ./core
