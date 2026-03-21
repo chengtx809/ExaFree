@@ -16,7 +16,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PORT=7860 \
     CONFIG_FILE=/app/data/settings.yaml \
-    ADMIN_PANEL_STATIC_DIR=/app/static
+    ADMIN_PANEL_STATIC_DIR=/app/static \
+    PATH=/app/.venv/bin:$PATH
 
 WORKDIR /app
 
